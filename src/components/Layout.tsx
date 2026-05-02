@@ -12,9 +12,12 @@ interface LayoutProps {
   onCreateCommit?: () => void;
   onSubmitThesis?: () => void;
   isLoggedIn?: boolean;
+  isLocked?: boolean;
+  userRole?: 'student' | 'supervisor';
+  onSignOut?: () => void;
 }
 
-export function Layout({ children, activeView, onNavigate, onCreateCommit, onSubmitThesis, isLoggedIn }: LayoutProps) {
+export function Layout({ children, activeView, onNavigate, onCreateCommit, onSubmitThesis, isLoggedIn, isLocked, userRole, onSignOut }: LayoutProps) {
   const isLanding = activeView === 'landing';
   const isLogin = activeView === 'login';
 
@@ -22,7 +25,7 @@ export function Layout({ children, activeView, onNavigate, onCreateCommit, onSub
     <div className="min-h-screen bg-background flex flex-col">
       {!isLogin && <TopNav activeView={activeView} onNavigate={onNavigate} onCreateCommit={onCreateCommit} isLoggedIn={isLoggedIn} />}
       <div className={`flex flex-1 ${!isLogin ? 'pt-14' : ''}`}>
-        {!isLanding && !isLogin && <Sidebar activeView={activeView} onNavigate={onNavigate} onCreateCommit={onCreateCommit} onSubmitThesis={onSubmitThesis} isLoggedIn={isLoggedIn} />}
+        {!isLanding && !isLogin && <Sidebar activeView={activeView} onNavigate={onNavigate} onCreateCommit={onCreateCommit} onSubmitThesis={onSubmitThesis} isLoggedIn={isLoggedIn} isLocked={isLocked} userRole={userRole} onSignOut={onSignOut} />}
         <main className={`flex-1 ${!isLanding && !isLogin ? 'md:ml-64 p-8' : ''} transition-all duration-300`}>
           <div className={`${!isLanding && !isLogin ? 'max-w-[1280px] mx-auto w-full' : ''}`}>
             <AnimatePresence mode="wait">

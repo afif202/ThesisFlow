@@ -12,9 +12,13 @@ import { CreateCommitModal } from './components/CreateCommitModal';
 import { ThesisSubmissionModal } from './components/ThesisSubmissionModal';
 import { RepositoryListView } from './components/RepositoryListView';
 import { DocumentDetailView } from './components/DocumentDetailView';
-import { ChevronRight, Loader2 } from 'lucide-react';
+import { AdminClearanceView } from './components/AdminClearanceView';
+import { ChevronRight, Loader2, UserCircle2, GraduationCap } from 'lucide-react';
 import { thesisService, AIInsight, Repository } from './services/thesisService';
 import { motion } from 'motion/react';
+import { getSupabase } from './lib/supabase';
+import { CreateRepositoryView } from './components/CreateRepositoryView';
+import { RepositorySettingsView } from './components/RepositorySettingsView';
 
 const OLD_ABSTRACT = `## Abstract
 This thesis explores the application of stochastic gradient descent in large-scale neural network training. 
@@ -28,41 +32,121 @@ We specifically focus on convergence rates, hyperparameter optimization, and los
 Traditional methods often fail to scale effectively with increasing high-dimensional datasets.
 Our approach leverages dynamic adaptive learning rates to achieve superior performance across various benchmarks.`;
 
-import { CreateRepositoryView } from './components/CreateRepositoryView';
-import { RepositorySettingsView } from './components/RepositorySettingsView';
-
-type View = 'login' | 'landing' | 'overview' | 'repo-list' | 'repo-detail' | 'repo-settings' | 'create-repo' | 'code' | 'diff' | 'ai' | 'repo-classification' | 'repo-insights' | 'history' | 'settings';
+type View = 'login' | 'landing' | 'overview' | 'repo-list' | 'repo-detail' | 'repo-settings' | 'create-repo' | 'code' | 'diff' | 'ai' | 'repo-classification' | 'repo-insights' | 'history' | 'settings' | 'admin-clearance';
 
 export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [session, setSession] = useState<any>(null);
+  const [userRole, setUserRole] = useState<'student' | 'supervisor' | null>(null);
   const [activeView, setActiveView] = useState<View>('landing');
   const [selectedRepoId, setSelectedRepoId] = useState<string | null>(null);
   const [isCommitModalOpen, setIsCommitModalOpen] = useState(false);
   const [isSubmissionModalOpen, setIsSubmissionModalOpen] = useState(false);
   const [aiData, setAiData] = useState<AIInsight | null>(null);
   const [repo, setRepo] = useState<Repository | null>(null);
+  const [repositories, setRepositories] = useState<Repository[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const supabase = getSupabase();
+
   useEffect(() => {
-    async function init() {
-      try {
-        const repos = await thesisService.getRepositories();
-        if (repos.length > 0) {
-          setRepo(repos[0]);
-          const commit = await thesisService.getLatestCommit(repos[0].id);
-          if (commit) {
-            const insights = await thesisService.getAIInsights(commit.id);
-            setAiData(insights);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to fetch initial data:', err);
-      } finally {
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+
+    // Check initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) fetchUserProfile(session.user.id);
+      else setLoading(false);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) {
+        fetchUserProfile(session.user.id);
+      } else {
+        setUserRole(null);
+        setActiveView('landing');
         setLoading(false);
       }
-    }
-    init();
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
+
+  const fetchUserProfile = async (userId: string) => {
+    try {
+      const profile = await thesisService.getUserProfile(userId);
+      if (profile) {
+        setUserRole(profile.role);
+        // Default views based on role
+        if (activeView === 'landing' || activeView === 'login') {
+          setActiveView(profile.role === 'supervisor' ? 'admin-clearance' : 'overview');
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching profile:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchRepoData = async () => {
+    if (!session) return;
+    try {
+      const repos = await thesisService.getRepositories(session.user.id);
+      setRepositories(repos);
+      
+      if (repos.length > 0) {
+        const currentRepo = selectedRepoId 
+          ? repos.find(r => r.id === selectedRepoId) || repos[0]
+          : repos[0];
+        
+        setRepo(currentRepo);
+        const commit = await thesisService.getLatestCommit(currentRepo.id);
+        if (commit) {
+          const insights = await thesisService.getAIInsights(commit.id);
+          setAiData(insights);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch data:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (session && (userRole === 'student' || !userRole)) {
+      fetchRepoData();
+    }
+  }, [selectedRepoId, session, userRole]);
+
+  const handleSubmitThesis = async (repoId: string) => {
+    try {
+      await thesisService.submitThesis(repoId);
+      setIsSubmissionModalOpen(false);
+      await fetchRepoData();
+      alert('Thesis submitted for clearance! Repository is now locked.');
+    } catch (err) {
+      console.error('Submission failed:', err);
+      alert('Failed to submit thesis. Please try again.');
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      setUserRole(null);
+      setSession(null);
+      setActiveView('landing');
+    } catch (err) {
+      console.error('Error signing out:', err);
+    }
+  };
+
+  const isLocked = repo?.status && repo.status !== 'draft';
 
   if (loading) {
     return (
@@ -77,29 +161,33 @@ export default function App() {
     );
   }
 
+  // Gate app with session
+  if (!session && activeView !== 'landing') {
+    return <LoginView onLoginSuccess={() => {}} />;
+  }
+
   return (
     <Layout 
       activeView={activeView} 
       onNavigate={setActiveView} 
-      onCreateCommit={() => setIsCommitModalOpen(true)}
-      onSubmitThesis={() => setIsSubmissionModalOpen(true)}
-      isLoggedIn={isLoggedIn}
+      onCreateCommit={() => !isLocked && setIsCommitModalOpen(true)}
+      onSubmitThesis={() => !isLocked && setIsSubmissionModalOpen(true)}
+      isLoggedIn={!!session}
+      isLocked={isLocked}
+      userRole={userRole || 'student'}
+      onSignOut={handleSignOut}
     >
-      {activeView === 'login' && (
-        <LoginView onLogin={() => {
-          setIsLoggedIn(true);
-          setActiveView('overview');
-        }} />
+      {activeView === 'login' && !session && (
+        <LoginView onLoginSuccess={() => {}} />
       )}
 
       {activeView === 'landing' && (
         <LandingView 
-          isLoggedIn={isLoggedIn} 
+          isLoggedIn={!!session} 
           onExplore={() => {
-            if (isLoggedIn) {
-              setActiveView('repo-list');
+            if (session) {
+              setActiveView(userRole === 'supervisor' ? 'admin-clearance' : 'repo-list');
             } else {
-              alert('Please login to explore active repositories.');
               setActiveView('login');
             }
           }}
@@ -109,8 +197,22 @@ export default function App() {
       {activeView === 'overview' && (
         <div className="space-y-6">
           <div className="bg-white border border-outline-variant rounded-xl p-8 shadow-sm">
-            <h1 className="text-2xl font-bold text-on-surface mb-2">Welcome back, Jane</h1>
-            <p className="text-on-surface-variant font-medium">You have 3 active research projects and 28 pending revisions.</p>
+            <h1 className="text-2xl font-bold text-on-surface mb-2">
+              Welcome back, {userRole === 'supervisor' ? 'Admin Prodi' : (session?.user?.email?.split('@')[0] || 'Scholar')}
+            </h1>
+            <p className="text-on-surface-variant font-medium">
+              {userRole === 'supervisor' 
+                ? 'There are pending clearance requests awaiting your verification.' 
+                : 'You have active research projects and pending revisions.'}
+            </p>
+            {isLocked && userRole === 'student' && (
+              <div className="mt-4 p-4 bg-primary/5 border border-primary/20 rounded-lg flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                <p className="text-xs font-bold text-primary tracking-tight">
+                  Your thesis "{repo?.name}" is currently <span className="underline uppercase">{repo?.status?.replace(/_/g, ' ')}</span>. Repository is locked.
+                </p>
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-white border border-outline-variant rounded-xl p-5 shadow-sm">
@@ -129,8 +231,11 @@ export default function App() {
         </div>
       )}
 
+      {activeView === 'admin-clearance' && userRole === 'supervisor' && <AdminClearanceView />}
+
       {activeView === 'repo-list' && (
         <RepositoryListView 
+          repositories={repositories}
           onSelectRepo={(id) => {
             setSelectedRepoId(id);
             setActiveView('repo-detail');
@@ -141,14 +246,15 @@ export default function App() {
 
       {activeView === 'repo-detail' && (
         <DocumentDetailView 
-          repoName="deep-learning-thesis" 
-          repoOwner="smith-j" 
-          onCreateCommit={() => setIsCommitModalOpen(true)} 
+          repoName={repo?.name || "Loading..."} 
+          repoOwner={session?.user?.email?.split('@')[0] || "owner"} 
+          onCreateCommit={() => !isLocked && setIsCommitModalOpen(true)} 
+          isLocked={isLocked}
         />
       )}
       
       {activeView === 'repo-settings' && (
-        <RepositorySettingsView repoName="deep-learning-thesis" />
+        <RepositorySettingsView repoName={repo?.name || "Thesis"} />
       )}
 
       {activeView === 'create-repo' && (
@@ -182,7 +288,7 @@ export default function App() {
 
       {(activeView === 'ai' || activeView === 'repo-classification' || activeView === 'repo-insights') && <AIInsightsView data={aiData} />}
 
-      {activeView === 'settings' && <SettingsView />}
+      {activeView === 'settings' && <SettingsView onSignOut={handleSignOut} />}
 
       <CreateCommitModal 
         isOpen={isCommitModalOpen} 
@@ -196,13 +302,8 @@ export default function App() {
       <ThesisSubmissionModal
         isOpen={isSubmissionModalOpen}
         onClose={() => setIsSubmissionModalOpen(false)}
-        onConfirm={(repoId) => {
-          console.log('Thesis submitted for clearance:', repoId);
-          setIsSubmissionModalOpen(false);
-          alert('Thesis submitted for clearance! Repository is now locked.');
-        }}
+        onConfirm={handleSubmitThesis}
       />
     </Layout>
   );
 }
-

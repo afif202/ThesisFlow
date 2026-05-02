@@ -6,23 +6,56 @@ import {
   ChevronRight,
   ShieldCheck,
   Globe,
-  GraduationCap
+  GraduationCap,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { getSupabase } from '../lib/supabase';
 
 interface LoginViewProps {
-  onLogin: () => void;
+  onLoginSuccess: () => void;
 }
 
-export function LoginView({ onLogin }: LoginViewProps) {
+export function LoginView({ onLoginSuccess }: LoginViewProps) {
   const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email && password) {
-      onLogin();
+    setError(null);
+    setLoading(true);
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      setError('Supabase is not configured.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      if (activeTab === 'login') {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (signInError) throw signInError;
+      } else {
+        const { error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+        if (signUpError) throw signUpError;
+        alert('Check your email for the confirmation link!');
+      }
+      onLoginSuccess();
+    } catch (err: any) {
+      setError(err.message || 'An error occurred during authentication.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -82,6 +115,20 @@ export function LoginView({ onLogin }: LoginViewProps) {
         </div>
 
         <div className="p-8">
+          <AnimatePresence mode="wait">
+            {error && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl flex items-center gap-3 text-red-600"
+              >
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                <p className="text-xs font-bold leading-tight">{error}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email Field */}
             <div className="space-y-2">
@@ -124,10 +171,17 @@ export function LoginView({ onLogin }: LoginViewProps) {
 
             <button 
               type="submit"
-              className="w-full bg-primary text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:-translate-y-0.5 active:translate-y-0 transition-all group"
+              disabled={loading}
+              className="w-full bg-primary text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:-translate-y-0.5 active:translate-y-0 transition-all group disabled:opacity-70 disabled:translate-y-0"
             >
-              {activeTab === 'login' ? 'Sign In' : 'Create Account'}
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              {loading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  {activeTab === 'login' ? 'Sign In' : 'Create Account'}
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </>
+              )}
             </button>
           </form>
 

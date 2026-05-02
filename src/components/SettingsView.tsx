@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
-import { User, Bell, Shield, Wallet, ChevronRight, Camera } from 'lucide-react';
+import { User, Bell, Shield, Wallet, ChevronRight, Camera, LogOut } from 'lucide-react';
 import { motion } from 'motion/react';
 
-export function SettingsView() {
+interface SettingsViewProps {
+  onSignOut?: () => void;
+}
+
+export function SettingsView({ onSignOut }: SettingsViewProps) {
   const [activeSubTab, setActiveSubTab] = useState('Profile');
 
   const subTabs = ['Profile', 'Account', 'Notifications', 'Security'];
@@ -141,13 +145,22 @@ export function SettingsView() {
           </section>
 
           {/* Bottom Actions Bar */}
-          <div className="flex items-center justify-end gap-3 pt-6 border-t border-outline-variant">
-            <button className="px-6 py-2 border border-outline-variant rounded-lg text-xs font-bold text-on-surface hover:bg-surface-container-low transition-all">
-              Cancel
+          <div className="flex items-center justify-between pt-6 border-t border-outline-variant">
+            <button 
+              onClick={onSignOut}
+              className="flex items-center gap-2 px-4 py-2 text-red-600 font-bold text-xs hover:bg-red-50 rounded-lg transition-all"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign Out from Device
             </button>
-            <button className="px-6 py-2 bg-primary text-white rounded-lg text-xs font-bold shadow-lg hover:shadow-primary/20 hover:-translate-y-0.5 transition-all">
-              Save Changes
-            </button>
+            <div className="flex items-center gap-3">
+              <button className="px-6 py-2 border border-outline-variant rounded-lg text-xs font-bold text-on-surface hover:bg-surface-container-low transition-all">
+                Cancel
+              </button>
+              <button className="px-6 py-2 bg-primary text-white rounded-lg text-xs font-bold shadow-lg hover:shadow-primary/20 hover:-translate-y-0.5 transition-all">
+                Save Changes
+              </button>
+            </div>
           </div>
         </div>
       </div>

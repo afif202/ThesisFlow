@@ -9,49 +9,20 @@ import {
   History,
   ChevronDown,
   Flag,
-  Info
+  Info,
+  Clock,
+  ShieldCheck
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { Repository } from '../services/thesisService';
 
 interface RepositoryListViewProps {
+  repositories: Repository[];
   onSelectRepo: (repoId: string) => void;
   onNavigate: (view: any) => void;
 }
 
-export function RepositoryListView({ onSelectRepo, onNavigate }: RepositoryListViewProps) {
-  const repos = [
-    {
-      id: '1',
-      name: 'Deep Learning in Complex Environments',
-      description: 'Investigating the robustness of neural networks when exposed to adversarial perturbations in simulated real-world scenarios. Includes core models and data pipelines.',
-      isPublic: true,
-      language: 'Python',
-      langColor: '#3572A5',
-      commits: 142,
-      updatedAt: '2 hours ago'
-    },
-    {
-      id: '2',
-      name: 'Literature Review: ML Safety',
-      description: 'Compiled annotated bibliography and draft chapters for the literature review section of the thesis.',
-      isPublic: false,
-      language: 'LaTeX',
-      langColor: '#008080',
-      commits: 56,
-      updatedAt: 'yesterday'
-    },
-    {
-      id: '3',
-      name: 'Synthetic Vision Datasets',
-      description: 'Scripts and generation tools for creating synthetic visual data to train the primary thesis models.',
-      isPublic: true,
-      language: 'Jupyter Notebook',
-      langColor: '#DA5B0B',
-      commits: 89,
-      updatedAt: 'last week'
-    }
-  ];
-
+export function RepositoryListView({ repositories, onSelectRepo, onNavigate }: RepositoryListViewProps) {
   // Helper for heatmap
   const heatmapData = Array.from({ length: 30 }, (_, i) => ({
     active: Math.random() > 0.4,
@@ -59,6 +30,21 @@ export function RepositoryListView({ onSelectRepo, onNavigate }: RepositoryListV
   }));
 
   const intensityColors = ['bg-blue-50', 'bg-blue-200', 'bg-blue-400', 'bg-blue-600', 'bg-blue-800'];
+
+  const getStatusConfig = (status: string) => {
+    switch (status) {
+      case 'draft':
+        return { label: 'Draft', color: 'bg-surface-container-low text-on-surface-variant border-outline-variant' };
+      case 'pending_admin_review':
+        return { label: 'Pending Review', color: 'bg-amber-50 text-amber-700 border-amber-200' };
+      case 'approved':
+        return { label: 'Approved', color: 'bg-green-50 text-green-700 border-green-200' };
+      case 'rejected':
+        return { label: 'Rejected', color: 'bg-red-50 text-red-700 border-red-200' };
+      default:
+        return { label: status, color: 'bg-surface-container-low text-on-surface-variant' };
+    }
+  };
 
   return (
     <div className="flex flex-col gap-8 font-sans">
@@ -111,47 +97,60 @@ export function RepositoryListView({ onSelectRepo, onNavigate }: RepositoryListV
           </div>
 
           <div className="space-y-4">
-            {repos.map((repo) => (
-              <motion.div 
-                key={repo.id}
-                whileHover={{ y: -2 }}
-                onClick={() => onSelectRepo(repo.id)}
-                className="group bg-white border border-outline-variant rounded-xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <Folder className="w-5 h-5 text-primary" />
-                    <h3 className="text-base font-bold text-primary group-hover:underline transition-all">
-                      {repo.name}
-                    </h3>
-                  </div>
-                  <div className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-tight border ${
-                    repo.isPublic ? 'bg-surface-container-low text-on-surface-variant border-outline-variant' : 'bg-surface-container-high text-on-surface border-outline'
-                  }`}>
-                    {repo.isPublic ? 'Public' : 'Private'}
-                  </div>
+            {repositories.length === 0 ? (
+              <div className="bg-white border border-outline-variant border-dashed rounded-xl p-12 flex flex-col items-center justify-center text-center">
+                <div className="w-16 h-16 bg-surface-container-low rounded-full flex items-center justify-center mb-4">
+                  <Folder className="w-8 h-8 text-outline" />
                 </div>
-                
-                <p className="text-[13px] text-on-surface-variant font-medium leading-relaxed mb-6 line-clamp-2">
-                  {repo.description}
+                <h3 className="text-lg font-bold text-on-surface mb-1">No repositories found</h3>
+                <p className="text-sm text-on-surface-variant max-w-xs mx-auto">
+                  You haven't created any thesis repositories yet. Click "New Repository" to get started.
                 </p>
+              </div>
+            ) : (
+              repositories.map((repo) => {
+                const statusConfig = getStatusConfig(repo.status);
+                return (
+                  <motion.div 
+                    key={repo.id}
+                    whileHover={{ y: -2 }}
+                    onClick={() => onSelectRepo(repo.id)}
+                    className="group bg-white border border-outline-variant rounded-xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <Folder className="w-5 h-5 text-primary" />
+                        <h3 className="text-base font-bold text-primary group-hover:underline transition-all">
+                          {repo.name}
+                        </h3>
+                      </div>
+                      <div className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-tight border ${statusConfig.color}`}>
+                        {statusConfig.label}
+                      </div>
+                    </div>
+                    
+                    <p className="text-[13px] text-on-surface-variant font-medium leading-relaxed mb-6 line-clamp-2">
+                      {repo.description || 'No description provided.'}
+                    </p>
 
-                <div className="flex flex-wrap items-center gap-6">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: repo.langColor }} />
-                    <span className="text-xs font-bold text-on-surface-variant">{repo.language}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-on-surface-variant">
-                    <GitCommit className="w-4 h-4" />
-                    <span className="text-xs font-bold">{repo.commits} commits</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-on-surface-variant">
-                    <History className="w-4 h-4" />
-                    <span className="text-xs font-medium">Updated {repo.updatedAt}</span>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+                    <div className="flex flex-wrap items-center gap-6">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-[#3572A5]" />
+                        <span className="text-xs font-bold text-on-surface-variant">Python</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-on-surface-variant">
+                        <GitCommit className="w-4 h-4" />
+                        <span className="text-xs font-bold">142 commits</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-on-surface-variant">
+                        <History className="w-4 h-4" />
+                        <span className="text-xs font-medium">Created {new Date(repo.created_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })
+            )}
           </div>
         </div>
 

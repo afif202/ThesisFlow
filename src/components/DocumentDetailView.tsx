@@ -20,9 +20,10 @@ interface DocumentDetailViewProps {
   repoName: string;
   repoOwner: string;
   onCreateCommit?: () => void;
+  isLocked?: boolean;
 }
 
-export function DocumentDetailView({ repoName, repoOwner, onCreateCommit }: DocumentDetailViewProps) {
+export function DocumentDetailView({ repoName, repoOwner, onCreateCommit, isLocked }: DocumentDetailViewProps) {
   const recentCommits = [
     { id: 1, message: 'Update introduction figures', time: '2 hours ago', active: true },
     { id: 2, message: 'Fix citation formatting', time: 'Yesterday', active: false },
@@ -41,9 +42,14 @@ export function DocumentDetailView({ repoName, repoOwner, onCreateCommit }: Docu
         <div className="flex items-center gap-3">
            <button 
             onClick={onCreateCommit}
-            className="bg-primary text-white px-6 h-9 rounded-lg text-xs font-black shadow-md hover:shadow-lg transition-all"
+            disabled={isLocked}
+            className={`px-6 h-9 rounded-lg text-xs font-black shadow-md transition-all ${
+              isLocked 
+                ? 'bg-outline-variant text-white cursor-not-allowed opacity-50' 
+                : 'bg-primary text-white hover:shadow-lg'
+            }`}
            >
-            Commit
+            {isLocked ? 'Locked' : 'Commit'}
           </button>
         </div>
       </div>
